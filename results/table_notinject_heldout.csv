@@ -1,0 +1,19 @@
+Model,FPR
+Regex,0.113
+TF-IDF+LR,0.127
+TF-IDF+LR+HN,0.029
+PromptGuard,1.000
+PromptGuard-JB,0.059
+ProtectAI,0.446
+LlamaGuard-ZS,0.064
+LlamaGuard-FS,0.069
+Qwen1.5B-ZS,0.387
+Qwen1.5B-FS,0.299
+Qwen3B-ZS,0.025
+Qwen3B-FS,0.181
+DeBERTa-FT,0.335 ± 0.025
+DeBERTa-FT+HN,0.007 ± 0.003
+Qwen1.5B-QLoRA,0.181 ± 0.049
+Qwen3B-QLoRA,0.180 ± 0.049
+Qwen1.5B-QLoRA+HN,0.007 ± 0.003
+Qwen3B-QLoRA+HN,0.007 ± 0.003

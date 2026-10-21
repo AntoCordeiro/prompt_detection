@@ -1,0 +1,1 @@
+{"model": "DeBERTa-FT+HN", "seed": 1, "n_params": 184423682, "load_time_s": 78.12709289998747, "train_time_s": 78.12709289998747, "max_length": 128, "peak_vram_gb": 4.621779968, "latency_ms_bs1": 15.021584375062957, "latency_ms_bs32": 1.678984374848369}

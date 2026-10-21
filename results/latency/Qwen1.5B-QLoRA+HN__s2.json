@@ -1,0 +1,1 @@
+{"model": "Qwen1.5B-QLoRA+HN", "seed": 2, "n_params": 907087360, "load_time_s": 104.61461220000638, "train_time_s": 104.61461220000638, "max_length": 128, "peak_vram_gb": 7.518304256, "latency_ms_bs1": 79.8327914062611, "latency_ms_bs32": 8.68628437501684}

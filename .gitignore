@@ -1,0 +1,14 @@
+# environments / caches
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# large or non-redistributable artefacts (regenerate with data.py / run_all.py)
+checkpoints/
+data/
+results/predictions/
+results/*.log
+
+# local tooling
+.claude/

@@ -1,0 +1,1 @@
+{"model": "PromptGuard", "seed": 0, "n_params": 278811651, "load_time_s": 15.146559300017543, "peak_vram_gb": 4.803871232, "latency_ms_bs1": 24.486164843892766, "latency_ms_bs32": 2.559597656272672}

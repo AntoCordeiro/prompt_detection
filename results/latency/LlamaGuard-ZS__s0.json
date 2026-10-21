@@ -1,0 +1,1 @@
+{"model": "LlamaGuard-ZS", "seed": 0, "n_params": 1498482688, "load_time_s": 2.4114722999511287, "peak_vram_gb": 5.795629568, "latency_ms_bs1": 20.85034687524967, "latency_ms_bs32": 9.628613281165599}

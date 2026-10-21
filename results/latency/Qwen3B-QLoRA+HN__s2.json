@@ -1,0 +1,1 @@
+{"model": "Qwen3B-QLoRA+HN", "seed": 2, "n_params": 1728614400, "load_time_s": 413.8978124000132, "train_time_s": 413.8978124000132, "max_length": 128, "peak_vram_gb": 3.525587456, "latency_ms_bs1": 103.53857656264154, "latency_ms_bs32": 12.595865624916769}

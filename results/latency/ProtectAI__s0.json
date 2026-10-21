@@ -1,0 +1,1 @@
+{"model": "ProtectAI", "seed": 0, "n_params": 184423682, "load_time_s": 0.9486618000082672, "peak_vram_gb": 4.518913536, "latency_ms_bs1": 14.49997656254709, "latency_ms_bs32": 2.3563570312035154}

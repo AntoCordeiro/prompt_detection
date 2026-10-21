@@ -1,0 +1,1 @@
+{"model": "Qwen3B-ZS", "seed": 0, "n_params": 3085938688, "load_time_s": 5.1856028999900445, "peak_vram_gb": 8.588707328, "latency_ms_bs1": 47.509022656413435, "latency_ms_bs32": 24.8719453124977}
