@@ -10,13 +10,15 @@ md("""
 Loads `results/` (per-sample predictions, latency, metrics) produced by `run_all.py`; no GPU needed.
 Benchmarks: **HackAPrompt** (held-out HackAPrompt attacks vs. Alpaca benign), **Deepset+NotInject** (Deepset test + all NotInject),
 **NotInject held-out** (60% of NotInject never used for training, benign only -> only FPR is defined).
-`+HN` rows are the hard-negative ablation (40% of NotInject added to training); NotInject rows used in training are excluded from their evaluation.
+`+HN` rows are the hard-negative ablation (40% of NotInject added to training/validation); those NotInject rows are excluded from their evaluation,
+so their Deepset+NotInject F1/precision use fewer benign rows than the other models - section 10 compares both on a common row set.
 """)
 code("""
 import numpy as np, pandas as pd, matplotlib.pyplot as plt, re, json
 from sklearn.metrics import roc_curve, precision_recall_curve, confusion_matrix
 import config as C
-from metrics import (load_predictions, exclude_trained, binary_metrics, mcnemar_p, per_source_rates, load_latency, tpr_at_fpr)
+from metrics import (load_predictions, exclude_trained, binary_metrics, mcnemar_p, per_source_rates, load_latency, tpr_at_fpr,
+                     hn_paired_table)
 pd.set_option("display.width", 220); pd.set_option("display.max_colwidth", 110)
 plt.rcParams.update({"figure.dpi": 110, "axes.grid": True, "grid.alpha": .3})
 M = pd.read_csv(C.RESULTS_DIR / "metrics.csv")
@@ -164,6 +166,14 @@ if ab.exists(): display(pd.read_csv(ab).round(3))
 h = d[d.model.str.contains("TF-IDF|QLoRA|DeBERTa-FT")].copy()
 h["family"] = h.model.str.replace("+HN", "", regex=False); h["hard_negatives"] = h.model.str.endswith("+HN")
 display(h[h.benchmark.isin(["bench_deepset_notinject","notinject_heldout"])].groupby(["benchmark","family","hard_negatives"])[["Recall","F1","FPR"]].mean().round(3))
+""")
+md("""
+The table above scores `+HN` models on fewer benign rows (their NotInject training/validation rows are removed), so F1 and precision are
+not comparable across the two variants. Below, both variants are scored on the **same** Deepset+NotInject rows (default threshold, mean over seeds).
+""")
+code("""
+HP = hn_paired_table(P).groupby(["family","hard_negatives"])[["n","Precision","Recall","F1","FPR","AUROC"]].mean().round(3)
+display(HP); HP.to_csv(C.RESULTS_DIR / "table_hn_paired.csv")
 """)
 md("""
 ## 11. Published reference points (not directly comparable - different data/protocols)

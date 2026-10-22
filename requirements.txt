@@ -1,9 +1,9 @@
 # Install torch first (CUDA build):
 #   pip install torch --index-url https://download.pytorch.org/whl/cu124
-transformers>=4.45
+transformers>=5.0   # code uses transformers-5 arguments (dtype=, float warmup_steps)
 datasets>=2.20
 accelerate>=0.34
-peft>=0.12
+peft>=0.21          # tested with 0.21.2
 bitsandbytes>=0.43
 scikit-learn>=1.4
 pandas>=2.0

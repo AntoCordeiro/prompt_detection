@@ -11,7 +11,7 @@ from common import Detector
 TRIGGERS = [
     r"ignore (all |any )?(the )?(previous|prior|above|earlier|preceding)",
     r"disregard", r"system prompt", r"you are now", r"developer mode", r"jailbreak",
-    r"\bDAN\b", r"act as", r"pretend (to be|you)", r"forget (everything|all|your|the)",
+    r"(?-i:\bDAN\b)", r"act as", r"pretend (to be|you)", r"forget (everything|all|your|the)",
     r"bypass", r"override", r"new instructions?", r"reveal (your|the) (prompt|instructions)",
     r"do anything now", r"stay in character", r"without (any )?(restrictions|limitations|filters)",
     r"vergiss|ignoriere|ignorieren",  # Deepset contains German

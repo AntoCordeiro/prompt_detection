@@ -30,10 +30,22 @@ Llama-Guard-3-1B (zero/few-shot, custom prompt-injection category, `sigmoid(logi
 | DeBERTa-v3-base fully fine-tuned (ours) | 0.99 / 0.03 | 0.88 / 0.29 / 0.47 | 0.87 | 0.34 | 20 / 1.9 |
 | Qwen2.5-1.5B QLoRA | 0.99 / 0.017 | 0.92 / 0.17 / 0.62 | 0.95 | 0.18 | 81 / 9.0 |
 | Qwen2.5-3B QLoRA | 0.99 / 0.008 | 0.93 / 0.15 / 0.64 | 0.95 | 0.18 | 105 / 13 |
-| *Ablation:* Qwen2.5-1.5B QLoRA + NotInject hard negatives | 0.99 / 0.014 | 0.92 / 0.008 / 0.94 | 0.98 | 0.007 | 80 / 8.5 |
-| *Ablation:* Qwen2.5-3B QLoRA + NotInject hard negatives | 0.99 / 0.009 | 0.92 / 0.008 / 0.94 | 0.98 | 0.007 | 108 / 13 |
+| *Ablation:* Qwen2.5-1.5B QLoRA + NotInject hard negatives | 0.99 / 0.014 | 0.92 / 0.009 / 0.94 | 0.98 | 0.007 | 80 / 8.5 |
+| *Ablation:* Qwen2.5-3B QLoRA + NotInject hard negatives | 0.99 / 0.009 | 0.92 / 0.009 / 0.94 | 0.98 | 0.007 | 108 / 13 |
 | *Ablation:* DeBERTa fine-tuned + NotInject hard negatives | 0.99 / 0.02 | 0.87 / 0.006 / 0.92 | 0.98 | 0.007 | 16 / 1.9 |
-| *Ablation:* TF-IDF + LR + hard negatives | 0.95 / 0.03 | 0.55 / 0.03 / 0.65 | 0.91 | 0.03 | 0.4 / 0.03 |
+| *Ablation:* TF-IDF + LR + hard negatives | 0.95 / 0.03 | 0.55 / 0.02 / 0.67 | 0.92 | 0.03 | 0.4 / 0.03 |
+
+The `+HN` rows are evaluated with the NotInject prompts they saw in training or validation removed, so on Deepset+NotInject they face 260 instead of 395
+benign prompts; their F1/precision are therefore **not** directly comparable with the rows above (recall, FPR and AUROC are). The like-for-like comparison is below.
+
+**Hard-negative ablation on a common row set** (Deepset+NotInject rows unseen by every variant: 60 attacks / 260 benign; default threshold; mean over seeds; `results/table_hn_paired.csv`):
+
+| Model | Precision | Recall | F1 | FPR | AUROC |
+|---|---|---|---|---|---|
+| TF-IDF + LR / + HN | 0.57 / 0.85 | 0.58 / 0.55 | 0.58 / 0.67 | 0.100 / 0.023 | 0.80 / 0.92 |
+| DeBERTa fine-tuned / + HN | 0.44 / 0.97 | 0.88 / 0.87 | 0.58 / 0.92 | 0.264 / 0.006 | 0.88 / 0.98 |
+| Qwen2.5-1.5B QLoRA / + HN | 0.60 / 0.96 | 0.92 / 0.92 | 0.73 / 0.94 | 0.145 / 0.009 | 0.96 / 0.98 |
+| Qwen2.5-3B QLoRA / + HN | 0.61 / 0.96 | 0.93 / 0.92 | 0.73 / 0.94 | 0.142 / 0.009 | 0.95 / 0.98 |
 
 Bootstrap 95% CIs, TPR@1%/5% FPR, validation-calibrated thresholds, per-source flag rates, ROC/PR curves, confusion matrices and McNemar tests are in `analysis.ipynb`.
 
@@ -47,15 +59,15 @@ Bootstrap 95% CIs, TPR@1%/5% FPR, validation-calibrated thresholds, per-source f
    low over-defense (FPR ~5%) but it misses most attacks. A few in-prompt examples help on HackAPrompt (recall 0.27 -> 0.39) but not on Deepset.
 4. **QLoRA-tuned Qwen gives the best detection** (AUROC 0.95 on Deepset+NotInject, TPR@5%FPR ~0.83-0.86 vs <= 0.33 for zero-shot detectors) but, trained on Deepset/HackAPrompt/Alpaca only,
    it over-defends on NotInject (FPR 0.15-0.18, worst for the 3-trigger-word prompts, 0.34-0.38). 3B vs 1.5B differences are within seed noise on most metrics.
-5. **Hard negatives fix over-defense without hurting recall.** Adding 40% of NotInject to training cuts held-out NotInject FPR from 0.18 to 0.007 and raises Deepset+NotInject F1 from 0.62-0.64 to 0.94
-   with recall unchanged (~0.92). Caveat: the zero-shot encoders never saw NotInject, so the `+HN` rows are an ablation, not a like-for-like comparison.
+5. **Hard negatives fix over-defense without hurting recall.** Adding 40% of NotInject to training cuts held-out NotInject FPR from 0.18 to 0.007 and, scored on the same Deepset+NotInject rows,
+   raises QLoRA F1 from 0.73 to 0.94 (FPR 0.14 -> 0.009) with recall unchanged (~0.92). Caveat: the zero-shot encoders never saw NotInject, so the `+HN` rows are an ablation, not a like-for-like comparison.
 6. **Latency/cost.** Encoders: ~15-25 ms/sample at batch 1 and ~2.5 ms at batch 32 on ~0.2-0.3B params. Llama-Guard-1B: ~21 ms (bs 1). QLoRA Qwen (4-bit): 80-105 ms (bs 1), 9-13 ms (bs 32); the 4-bit
    kernels make small batches slow. TF-IDF is >30x faster than any neural model but has AUROC 0.78 on Deepset+NotInject.
 7. **Calibrating the threshold on validation does not fix everything.** For ProtectAI the validation-optimal threshold (~0) raises recall to 0.70 but FPR to 0.65 because validation has no NotInject-style negatives; for Qwen it moves FPR from 0.165 to 0.11 at a small F1 gain.
 8. **Fine-tuning vs prompting (B2).** Zero/few-shot Qwen is far better than Llama-Guard as a detector (3B zero-shot AUROC 0.89 and FPR 0.03 on Deepset+NotInject) but is inconsistent:
    3B zero-shot is conservative (recall 0.38), few-shot helps on HackAPrompt (recall 0.56 -> 0.87) but not on Deepset+NotInject (3B few-shot AUROC 0.80), and the 1.5B model over-flags (FPR 0.28-0.39). QLoRA lifts recall to 0.93 at the same model size (AUROC 0.95), so task-specific training is worth it; few-shot results are single-run and prompt-dependent.
 9. **Full fine-tuning of an encoder is the best cost/quality trade-off (B5).** Fine-tuned DeBERTa-v3-base (184M) reaches Qwen-QLoRA-level quality only when hard negatives are included
-   (Deepset+NotInject F1 0.92 vs 0.94, FPR 0.006-0.008 for both) but runs 5x faster at batch 1 (16-20 ms vs 104-106 ms), ~7x at batch 32 (1.9 vs 13 ms) and trains in ~1.5 min vs 7-8 min. Without hard negatives it over-defends more than QLoRA Qwen (held-out NotInject FPR 0.34 vs 0.18).
+   (Deepset+NotInject F1 0.92 vs 0.94, FPR 0.006-0.009 for both) but runs 5x faster at batch 1 (16-20 ms vs 104-106 ms), ~7x at batch 32 (1.9 vs 13 ms) and trains in ~1.5 min vs 7-8 min. Without hard negatives it over-defends more than QLoRA Qwen (held-out NotInject FPR 0.34 vs 0.18).
 
 ## QLoRA ablation (Qwen2.5-1.5B, seed 0, headline training data; `results/ablation.csv`)
 | Config | Val F1 | HackAPrompt F1 | Deepset+NotInject F1 / FPR | NotInject held-out FPR | Train time |
@@ -79,6 +91,8 @@ Longer context (256) and all-linear vs attention-only LoRA give no benefit, so t
 - Deepset test has only 60 attacks; CIs for recall/F1 on Deepset+NotInject are wide (see `analysis.ipynb`). The validation set has ~108 benign prompts, so FPR targets below ~5% are not estimable.
 - The HackAPrompt benchmark confounds source and label (HackAPrompt vs Alpaca); per-source rates are reported instead of relying only on the mixed F1/AUROC.
 - Llama-Guard uses our custom category and few-shot text, not Meta's default taxonomy; results depend on that wording. Few-shot examples were checked not to occur in any split.
+- Prompts are passed to the tokenizers as plain text, so a literal special-token string inside a prompt is parsed as that token. This affects one
+  test prompt (a HackAPrompt attack containing `<|im_end|>`) plus validation rows; the effect on any metric is at most one sample.
 - `n_params` for 4-bit QLoRA models counts packed weights (under-reports real size); `peak_vram_gb` for QLoRA includes the training peak.
 - Fine-tuned encoder row uses DeBERTa-v3-base only (not Prompt-Guard). The Qwen prompting results use one hand-written prompt and the same four few-shot examples as Llama-Guard; no prompt tuning was done.
 - Published reference points (different data/protocols, not directly comparable): PromptShield ([arXiv 2501.15145](https://arxiv.org/abs/2501.15145)) reports ~65% TPR at 0.1% FPR for its detector and ~12.8% TPR for Prompt-Guard at <= 1% FPR; InjecGuard ([arXiv 2410.22770](https://arxiv.org/abs/2410.22770)) reports NotInject accuracy below 60% for Deepset, Fmops, Prompt-Guard and ProtectAI-v2.

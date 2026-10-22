@@ -6,7 +6,7 @@ import pandas as pd
 import config as C
 from common import free_gpu, set_seed
 from data import load_splits
-from metrics import binary_metrics, pick_threshold
+from metrics import binary_metrics
 
 ATTN = ["q_proj", "k_proj", "v_proj", "o_proj"]
 CONFIGS = {
@@ -36,7 +36,6 @@ def main():
         det = qlora.build("Qwen1.5B-QLoRA", seed=0, splits=splits, overrides=ov, tag="_abl_" + name.split()[0].replace("/", ""))
         with det:
             sv = det.score(splits["validation"].prompt_text.tolist())
-            thr = pick_threshold(splits["validation"].label, sv, "f1")
             row = {"config": name, "val_F1": binary_metrics(splits["validation"].label, sv)["F1"],
                    "train_time_s": det.meta["train_time_s"], "peak_vram_gb": det.meta["peak_vram_gb"]}
             for b in ("bench_hackaprompt", "bench_deepset_notinject", "notinject_heldout"):
