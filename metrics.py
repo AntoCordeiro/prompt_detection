@@ -103,18 +103,37 @@ def load_predictions():
 
 
 def hn_train_texts():
-    """NotInject texts that '+HN' models saw in training (must be excluded from their evaluation)."""
-    f = C.DATA_DIR / "train_hn.jsonl"
-    if not f.exists():
-        return set()
-    d = pd.read_json(f, lines=True)
-    return set(d[d["source"].str.startswith("notinject")]["prompt_text"])
+    """NotInject texts that '+HN' models saw during training or model selection (train_hn + validation_hn);
+    they must be excluded from their test-benchmark evaluation."""
+    texts = set()
+    for name in ("train_hn", "validation_hn"):
+        f = C.DATA_DIR / f"{name}.jsonl"
+        if f.exists():
+            d = pd.read_json(f, lines=True)
+            texts |= set(d[d["source"].str.startswith("notinject")]["prompt_text"])
+    return texts
 
 
 def exclude_trained(preds):
+    """Drop the hn_train_texts() rows of '+HN' models from the test benchmarks (validation splits are kept)."""
     hn = hn_train_texts()
-    bad = preds["model"].str.endswith("+HN") & preds["text"].isin(hn)
+    bad = preds["model"].str.endswith("+HN") & ~preds["split"].str.startswith("validation") & preds["text"].isin(hn)
     return preds[~bad]
+
+
+def hn_paired_table(preds, bench="bench_deepset_notinject"):
+    """D1 ablation on a common row set: each trained family with and without hard negatives is scored on the
+    same benchmark rows (those left after removing hn_train_texts()), so F1/precision are comparable."""
+    hn = hn_train_texts()
+    t = preds[(preds.split == bench) & ~preds.text.isin(hn)]
+    rows = []
+    for (model, seed), g in t.groupby(["model", "seed"]):
+        family = model.replace("+HN", "")
+        if f"{family}+HN" not in set(preds.model):
+            continue
+        rows.append({"family": family, "hard_negatives": model.endswith("+HN"), "seed": seed, "n": len(g),
+                     **binary_metrics(g.label, g.score)})
+    return pd.DataFrame(rows)
 
 
 def build_metrics_table(preds=None, benches=None, ci=True):
@@ -122,12 +141,9 @@ def build_metrics_table(preds=None, benches=None, ci=True):
     preds = load_predictions() if preds is None else preds
     benches = benches or ["bench_hackaprompt", "bench_deepset_notinject", "notinject_heldout"]
     rows = []
-    # D1: "+HN" models trained on part of NotInject -> exclude those rows from every benchmark
-    hn_train = set(pd.read_json(C.DATA_DIR / "train_hn.jsonl", lines=True).query("source.str.startswith('notinject')",
-                   engine="python")["prompt_text"]) if (C.DATA_DIR / "train_hn.jsonl").exists() else set()
+    # D1: "+HN" models saw part of NotInject in training/validation -> exclude those rows from every benchmark
+    preds = exclude_trained(preds)
     for (model, seed), g in preds.groupby(["model", "seed"]):
-        if model.endswith("+HN"):
-            g = g[~g["text"].isin(hn_train)]
         val_name = "validation_hn" if model.endswith("+HN") else "validation"
         v = g[g.split == val_name]
         thr_f1 = pick_threshold(v.label, v.score, "f1") if len(v) else 0.5

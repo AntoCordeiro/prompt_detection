@@ -1,7 +1,7 @@
 """Methodology 2: Qwen2.5-{1.5B,3B}-Instruct + QLoRA with a sequence-classification head.
 
 Keys: "Qwen1.5B-QLoRA", "Qwen3B-QLoRA"; suffix "+HN" trains on `train_hn` (adds 40% of NotInject as hard
-negatives) and is the D1 ablation - evaluated only on `notinject_heldout` for a fair comparison.
+negatives) and is the D1 ablation - its NotInject training/validation rows are excluded from evaluation (metrics.exclude_trained).
 """
 import time
 
