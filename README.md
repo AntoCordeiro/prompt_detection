@@ -11,7 +11,7 @@ Comparative study of lightweight binary detectors (benign vs. prompt injection /
 Data: [deepset/prompt-injections](https://huggingface.co/datasets/deepset/prompt-injections), [HackAPrompt](https://huggingface.co/datasets/hackaprompt/hackaprompt-dataset) (attacks only), [NotInject](https://huggingface.co/datasets/leolee99/NotInject) (benign, trigger-word-rich), plus Alpaca-cleaned as generic benign text.
 Metrics: accuracy, precision, recall, F1, FPR on benign prompts, AUROC, TPR@FPR, bootstrap CIs, McNemar tests, latency (batch 1 / 32), VRAM.
 
-**Results and discussion: [REPORT.md](REPORT.md)** · full tables/plots: [analysis.ipynb](analysis.ipynb) · `results/` (metrics, tables, figures).
+**Results and discussion: [REPORT.md](REPORT.md)** (Part 2 tests whether the benchmarks are fair: level split, out-of-distribution training, style probe, trigger-word hard negatives) · full tables/plots: [analysis.ipynb](analysis.ipynb) · `results/` (metrics, tables, figures).
 
 ## Setup
 ```bash
@@ -26,7 +26,9 @@ Tokens are stored by the Hugging Face CLI; nothing secret is in the repo.
 ## Reproduce
 ```bash
 python data.py                                    # build splits (+ leakage checks) -> data/
-python run_all.py --models all --seeds 0 1 2      # resumable; predictions -> results/predictions/, summary -> results/metrics.csv
+python data.py --extra                            # v2 splits (level split, OOD, trigger-word hard negatives)
+python run_all.py --models everything --seeds 0 1 2   # all models + v2 protocols; resumable; predictions -> results/predictions/, summary -> results/metrics.csv
+python probe.py                                   # style/source probe -> results/style_probe.csv
 python ablate.py                                  # QLoRA hyper-parameter ablation -> results/ablation.csv
 python make_notebook.py && jupyter nbconvert --to notebook --execute --inplace analysis.ipynb
 ```

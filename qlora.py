@@ -53,7 +53,7 @@ class QLoraDetector(Detector):
             idx = order[i:i + bs]
             enc = self.tok([texts[j] for j in idx], return_tensors="pt", padding=True, truncation=True,
                            max_length=self.max_length).to("cuda")
-            with torch.no_grad():
+            with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):  # same precision as training (explicit, reproducible)
                 out[idx] = torch.softmax(self.model(**enc).logits.float(), dim=-1)[:, 1].cpu().numpy()
         self.meta["peak_vram_gb"] = torch.cuda.max_memory_allocated() / 1e9
         return out
@@ -64,12 +64,12 @@ class QLoraDetector(Detector):
 
 
 def build(key, seed=0, splits=None, overrides=None, tag="", **_):
-    hn = key.endswith("+HN")
-    size = key.replace("-QLoRA", "").replace("+HN", "")
+    from data import split_names
+    tr_name, va_name = split_names(key)
+    size = key.split("@")[0].replace("-QLoRA", "").replace("+HN", "")
     model_id = MODEL_IDS[size]
     cfg = {**C.QLORA, **(overrides or {})}
-    train_df = splits["train_hn" if hn else "train"]
-    val_df = splits["validation_hn" if hn else "validation"]
+    train_df, val_df = splits[tr_name], splits[va_name]
     set_seed(seed)
     torch.cuda.reset_peak_memory_stats()
 
@@ -127,3 +127,24 @@ def build(key, seed=0, splits=None, overrides=None, tag="", **_):
     meta = {"n_params": count_params(model), "load_time_s": train_time, "train_time_s": train_time,
             "max_length": max_length, "peak_vram_gb": torch.cuda.max_memory_allocated() / 1e9}
     return QLoraDetector(key, model, tok, max_length, meta)
+
+
+def load(key, seed=0, **_):
+    """Reload a trained adapter from checkpoints/ (used to score new splits without retraining)."""
+    import json
+    from peft import PeftModel
+    size = key.split("@")[0].replace("-QLoRA", "").replace("+HN", "")
+    adir = C.CKPT_DIR / f"{key}_s{seed}" / "adapter"
+    max_length = json.loads((C.RESULTS_DIR / "latency" / f"{key}__s{seed}.json").read_text())["max_length"]
+    tok = AutoTokenizer.from_pretrained(MODEL_IDS[size])  # original tokenizer, as in training
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+    bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True,
+                             bnb_4bit_compute_dtype=torch.bfloat16)
+    base = AutoModelForSequenceClassification.from_pretrained(
+        MODEL_IDS[size], num_labels=2, quantization_config=bnb, dtype=torch.bfloat16, device_map={"": 0})
+    base.config.pad_token_id = tok.pad_token_id
+    base = prepare_model_for_kbit_training(base, use_gradient_checkpointing=False)  # same fp32 upcasts as in training
+    model = PeftModel.from_pretrained(base, adir).eval()
+    torch.cuda.reset_peak_memory_stats()
+    return QLoraDetector(key, model, tok, max_length, {"n_params": count_params(model)})

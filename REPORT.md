@@ -87,9 +87,69 @@ Over-defense on NotInject varies (FPR 0.10-0.27) with no monotonic trend in rank
 most of these differences are within seed noise (single seed per row here). Only the shorter training (2 epochs: lowest FPR) hints at less over-fitting to Deepset/HackAPrompt style.
 Longer context (256) and all-linear vs attention-only LoRA give no benefit, so the default (r=16, all-linear, length from the 95th percentile = 128) is kept. The hard-negative data (takeaway 5) is a far larger effect than any hyper-parameter.
 
+## Part 2 - Rigor checks: are the benchmarks fair?
+After the first round we questioned whether the benchmark construction flattered the models. Everything above (the "random split" protocol) is kept unchanged;
+the checks below were **added** and compared against it (`analysis.ipynb`, sections 12-16; `probe.py`, `data.py --extra`, `run_all.py --models v2`).
+Designs were fixed before looking at results: held-out HackAPrompt levels {2, 5, 8}; half of NotInject's 112 trigger words held out; 3 seeds for every trained model.
+
+**1. Style probe - how much is solvable without understanding injections?** (5-fold CV inside each benchmark)
+
+| Probe | Style features only | Char n-gram LR |
+|---|---|---|
+| HackAPrompt benchmark: attacks vs Alpaca | 0.978 | **1.000** |
+| Level-split benchmark: attacks vs Alpaca | 0.967 | **1.000** |
+| Deepset+NotInject: attacks vs benign | 0.937 | 0.973 |
+| Deepset only (source-matched) | 0.922 | 0.939 |
+| Same label, different source: NotInject vs Deepset benign | 0.971 | 0.999 |
+| Same label, different source: HackAPrompt vs Deepset attacks | 0.938 | 0.994 |
+
+AUROC. The HackAPrompt-vs-Alpaca benchmarks are perfectly separable by character n-grams, so near-perfect scores there say little about injection understanding.
+Deepset is also not style-free (its attacks are longer than its benign prompts), and sources are easy to tell apart even when the label is the same.
+
+**2. Level split (train on levels {0,1,3,4,6,7,9}, test on unseen levels {2,5,8}; mean over 3 seeds, threshold 0.5)**
+
+| Model | Recall, random split -> unseen levels | F1 | FPR |
+|---|---|---|---|
+| TF-IDF + LR | 0.965 -> 0.850 | 0.965 -> 0.900 | 0.035 -> 0.038 |
+| DeBERTa fine-tuned | 0.991 -> 0.953 | 0.981 -> 0.967 | 0.029 -> 0.019 |
+| Qwen2.5-1.5B QLoRA | 1.000 -> 0.961 | 0.992 -> 0.974 | 0.017 -> 0.013 |
+| Qwen2.5-3B QLoRA | 0.997 -> 0.981 | 0.995 -> 0.982 | 0.008 -> 0.018 |
+| ProtectAI / Prompt-Guard JAILBREAK (untrained here) | 1.000 / 0.997 | 0.999 / 0.997 | 0.003 |
+
+The random split flattered trained models by 2-4 recall points (11 for TF-IDF), more for weaker models, but all stay above 0.95 F1 except TF-IDF. This is a real but modest generalisation gap; combined with the probe it shows the task is easy mostly for stylistic reasons.
+
+**3. Out-of-distribution training (mean over 3 seeds)**
+
+| Trained without | Tested on | TF-IDF | DeBERTa | Qwen 1.5B QLoRA |
+|---|---|---|---|---|
+| nothing removed (reference) | HackAPrompt, recall | 0.935 | 0.998 | 0.994 |
+| HackAPrompt attacks (`noHack`) | HackAPrompt, recall | 0.537 | 0.922 | 0.978 |
+| nothing removed (reference) | Deepset+NotInject, recall / F1 | 0.58 / 0.48 | 0.88 / 0.47 | 0.92 / 0.62 |
+| Deepset and NotInject (`hackOnly`) | Deepset+NotInject, recall / F1 | 0.30 / 0.37 | 0.59 / 0.46 | 0.84 / 0.53 |
+
+The ranking by generalisation is clear: the LLM-based classifier degrades least, the fine-tuned encoder more, TF-IDF collapses. Qwen trained on HackAPrompt+Alpaca only also over-flags Deepset benign prompts (FPR 0.33), as it never saw that benign style.
+
+**4. Source-matched evaluation.** Restricting Deepset+NotInject to Deepset only (60 attacks vs 56 benign, no NotInject) leaves recall unchanged but removes the NotInject false positives:
+Qwen QLoRA F1 0.62-0.64 -> 0.95-0.96, DeBERTa 0.47 -> 0.94, ProtectAI AUROC 0.53 -> 0.90. So the low Deepset+NotInject F1 of most models is **over-defense on NotInject, not missed attacks**; and the hard-negative models do not score
+higher on the mixed set than on the Deepset-only set (AUROC 0.98 vs 0.98), i.e. there is no sign that they profit from recognising the NotInject style.
+
+**5. Hard negatives chosen by trigger word (`hnWord`).** Training only on NotInject prompts whose trigger words are disjoint from the test prompts' words (99 test prompts) gives the same over-defense reduction as the random split:
+
+| FPR on NotInject with unseen trigger words | no hard negatives | random 40% | disjoint words |
+|---|---|---|---|
+| DeBERTa fine-tuned | 0.310 | 0.017 | 0.017 |
+| Qwen 1.5B QLoRA | 0.114 | 0.017 | 0.017 |
+| Qwen 3B QLoRA | 0.111 | 0.017 | 0.010 |
+
+Recall cost on Deepset attacks is small (Qwen 3B 0.928 -> 0.900, DeBERTa 0.883 -> 0.839). The gain therefore generalises across trigger words, though still within NotInject's own distribution (same generator and style) - it does not show robustness to other kinds of benign text.
+
+**What changes in the conclusions:** the ranking of models is stable under all protocols (LLM-QLoRA >= DeBERTa > TF-IDF for trained models; hard negatives are the biggest lever on over-defense), but the near-perfect HackAPrompt numbers should be read as an upper bound caused by style separability, and the zero-shot encoders (ProtectAI, Prompt-Guard JAILBREAK) match or beat trained models there while over-defending on NotInject.
+We cannot tell whether those pretrained detectors saw HackAPrompt-like data during their own training.
+
 ## Limitations / honest caveats
 - Deepset test has only 60 attacks; CIs for recall/F1 on Deepset+NotInject are wide (see `analysis.ipynb`). The validation set has ~108 benign prompts, so FPR targets below ~5% are not estimable.
-- The HackAPrompt benchmark confounds source and label (HackAPrompt vs Alpaca); per-source rates are reported instead of relying only on the mixed F1/AUROC.
+- The HackAPrompt benchmark confounds source and label (HackAPrompt vs Alpaca): a char n-gram probe separates them perfectly (Part 2), so it is an easy upper bound. Per-source rates, the level split and the out-of-distribution protocols are reported to compensate; a benign set matched in style to HackAPrompt inputs would be needed to remove the confound fully.
+- The unseen-level and trigger-word splits reduce but do not remove distribution overlap (same competition, same NotInject generator); pretrained detectors' own training data is unknown.
 - Llama-Guard uses our custom category and few-shot text, not Meta's default taxonomy; results depend on that wording. Few-shot examples were checked not to occur in any split.
 - Prompts are passed to the tokenizers as plain text, so a literal special-token string inside a prompt is parsed as that token. This affects one
   test prompt (a HackAPrompt attack containing `<|im_end|>`) plus validation rows; the effect on any metric is at most one sample.
@@ -99,8 +159,10 @@ Longer context (256) and all-linear vs attention-only LoRA give no benefit, so t
 
 ## Reproduce
 ```
-.venv/Scripts/python data.py
+.venv/Scripts/python data.py            # then: data.py --extra  (adds the v2 splits; the original splits are untouched)
 .venv/Scripts/python run_all.py --models all --seeds 0 1 2
 .venv/Scripts/python ablate.py
+.venv/Scripts/python run_all.py --models v2 --seeds 0 1 2   # v2 protocols; plain `all` also scores old models on the new test sets
+.venv/Scripts/python probe.py
 .venv/Scripts/python make_notebook.py && jupyter nbconvert --to notebook --execute --inplace analysis.ipynb
 ```

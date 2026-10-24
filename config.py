@@ -41,3 +41,13 @@ BOOTSTRAP_N = 1000
 LATENCY_N = 128         # samples used for latency measurement
 LATENCY_BATCHES = (1, 32)
 FPR_TARGET = 0.05       # operating point for validation-calibrated threshold
+
+# ---- v2 protocols (added after the first round; old splits/results are kept as the "random-split" reference) ----
+TEST_LEVELS = [2, 5, 8]      # HackAPrompt levels held out of training for the level split (fixed a priori)
+HNW_HELD_FRAC = 0.5          # share of NotInject trigger words held out for the trigger-word split
+PROTOCOLS = {                # protocol -> what it tests
+    "lvl": "train on HackAPrompt levels {0,1,3,4,6,7,9}; test on unseen levels {2,5,8}",
+    "noHack": "train without HackAPrompt; test on HackAPrompt (out-of-distribution attacks)",
+    "hackOnly": "train on HackAPrompt+Alpaca only; test on Deepset+NotInject (out-of-distribution)",
+    "hnWord": "hard negatives from NotInject restricted to trigger words disjoint from the held-out set",
+}

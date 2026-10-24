@@ -114,24 +114,48 @@ def hn_train_texts():
     return texts
 
 
+_NI_CACHE = {}
+
+
+def trained_ni_texts(key):
+    """NotInject texts a model saw in its training/validation split (empty for models without hard negatives)."""
+    from data import split_names
+    names = split_names(key)
+    if names not in _NI_CACHE:
+        texts = set()
+        for name in names:
+            f = C.DATA_DIR / f"{name}.jsonl"
+            if f.exists():
+                d = pd.read_json(f, lines=True)
+                texts |= set(d[d["source"].str.startswith("notinject")]["prompt_text"])
+        _NI_CACHE[names] = texts
+    return _NI_CACHE[names]
+
+
 def exclude_trained(preds):
-    """Drop the hn_train_texts() rows of '+HN' models from the test benchmarks (validation splits are kept)."""
-    hn = hn_train_texts()
-    bad = preds["model"].str.endswith("+HN") & ~preds["split"].str.startswith("validation") & preds["text"].isin(hn)
+    """Drop, per model, the NotInject rows it trained/validated on from the test benchmarks (validation splits are kept)."""
+    bad = pd.Series(False, index=preds.index)
+    for key in preds["model"].unique():
+        ni = trained_ni_texts(key)
+        if ni:
+            bad |= (preds["model"] == key) & ~preds["split"].str.startswith("validation") & preds["text"].isin(ni)
     return preds[~bad]
 
 
-def hn_paired_table(preds, bench="bench_deepset_notinject"):
+def hn_paired_table(preds, bench="bench_deepset_notinject", proto=""):
     """D1 ablation on a common row set: each trained family with and without hard negatives is scored on the
-    same benchmark rows (those left after removing hn_train_texts()), so F1/precision are comparable."""
-    hn = hn_train_texts()
+    same benchmark rows (those left after removing the NotInject rows the +HN model trained on), so F1/precision are
+    comparable. proto='' -> random-split hard negatives; proto='hnWord' -> trigger-word-disjoint hard negatives."""
+    suffix = "+HN" + (f"@{proto}" if proto else "")
+    hn_models = [k for k in preds.model.unique() if k.endswith(suffix)]
+    hn = set().union(*[trained_ni_texts(k) for k in hn_models]) if hn_models else set()
     t = preds[(preds.split == bench) & ~preds.text.isin(hn)]
     rows = []
     for (model, seed), g in t.groupby(["model", "seed"]):
-        family = model.replace("+HN", "")
-        if f"{family}+HN" not in set(preds.model):
+        family = model[:-len(suffix)] if model.endswith(suffix) else model
+        if "@" in family or "+HN" in family or f"{family}{suffix}" not in set(preds.model):
             continue
-        rows.append({"family": family, "hard_negatives": model.endswith("+HN"), "seed": seed, "n": len(g),
+        rows.append({"family": family, "hard_negatives": model.endswith(suffix), "seed": seed, "n": len(g),
                      **binary_metrics(g.label, g.score)})
     return pd.DataFrame(rows)
 
@@ -139,12 +163,14 @@ def hn_paired_table(preds, bench="bench_deepset_notinject"):
 def build_metrics_table(preds=None, benches=None, ci=True):
     """One row per (model, seed, benchmark) at the default (0.5) and the val-calibrated thresholds."""
     preds = load_predictions() if preds is None else preds
-    benches = benches or ["bench_hackaprompt", "bench_deepset_notinject", "notinject_heldout"]
+    benches = benches or ["bench_hackaprompt", "bench_deepset_notinject", "notinject_heldout",
+                          "bench_hack_lvl", "notinject_heldout_word"]
     rows = []
     # D1: "+HN" models saw part of NotInject in training/validation -> exclude those rows from every benchmark
     preds = exclude_trained(preds)
     for (model, seed), g in preds.groupby(["model", "seed"]):
-        val_name = "validation_hn" if model.endswith("+HN") else "validation"
+        from data import split_names
+        val_name = split_names(model)[1]
         v = g[g.split == val_name]
         thr_f1 = pick_threshold(v.label, v.score, "f1") if len(v) else 0.5
         thr_fpr = pick_threshold(v.label, v.score, "fpr") if len(v) else 0.5
@@ -166,7 +192,7 @@ def per_source_rates(preds, thr=0.5):
     """Positive-rate per data source: FPR for benign sources, recall for attack sources (C1, C2)."""
     d = preds.copy()
     d["flag"] = (d.score >= thr).astype(int)
-    d = d[d.split.isin(["bench_hackaprompt", "bench_deepset_notinject"])]
+    d = d[d.split.isin(["bench_hackaprompt", "bench_deepset_notinject", "bench_hack_lvl"])]
     return d.groupby(["model", "seed", "split", "source"]).agg(n=("flag", "size"), flag_rate=("flag", "mean")).reset_index()
 
 

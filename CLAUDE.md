@@ -31,9 +31,14 @@ University NLP project: *Detecting Direct Prompt Injections*. This is a comparat
 .venv/Scripts/python run_all.py --models all --seeds 0 1 2     # resumable; skips existing results/predictions/*.parquet
 .venv/Scripts/python run_all.py --models LlamaGuard-ZS --debug # print rendered prompt / generations / raw labels
 ```
-Model keys: Regex, TF-IDF+LR, PromptGuard, PromptGuard-JB, ProtectAI, LlamaGuard-ZS/-FS, Qwen1.5B/3B-ZS/-FS, DeBERTa-FT, Qwen1.5B-QLoRA, Qwen3B-QLoRA, each with a `+HN` ablation variant for TF-IDF, DeBERTa-FT and QLoRA (trained with 40% of NotInject as hard negatives). To redo a run, delete its parquet. Run GPU jobs one at a time, otherwise latency numbers are contaminated. Outputs: `results/predictions/`, `results/latency/`, `results/metrics.csv` (default / val-F1 / val-FPR<=5% thresholds, bootstrap CIs).
+Model keys (plus `@lvl|@noHack|@hackOnly|@hnWord` variants, see v2 protocols): Regex, TF-IDF+LR, PromptGuard, PromptGuard-JB, ProtectAI, LlamaGuard-ZS/-FS, Qwen1.5B/3B-ZS/-FS, DeBERTa-FT, Qwen1.5B-QLoRA, Qwen3B-QLoRA, each with a `+HN` ablation variant for TF-IDF, DeBERTa-FT and QLoRA (trained with 40% of NotInject as hard negatives). To redo a run, delete its parquet. Run GPU jobs one at a time, otherwise latency numbers are contaminated. Outputs: `results/predictions/`, `results/latency/`, `results/metrics.csv` (default / val-F1 / val-FPR<=5% thresholds, bootstrap CIs).
 
 Design: every model is a `Detector` (common.py) returning P(malicious) in [0,1]; run_all writes per-sample scores for all splits; metrics.py computes everything from those parquets. `+HN` models are evaluated with the NotInject rows used in training removed (metrics.build_metrics_table).
+
+## v2 protocols (added after the first round; additive, old results are the "random-split" reference)
+- `python data.py --extra` adds splits without touching the originals: `*_lvl` (HackAPrompt levels {2,5,8} held out), `*_noHack`, `*_hackOnly` (out-of-distribution), `*_hnWord` + `notinject_heldout_word` (trigger-word-disjoint hard negatives), `bench_hack_lvl`.
+- Keys carry an `@protocol` suffix (e.g. `Qwen3B-QLoRA@lvl`, `DeBERTa-FT+HN@hnWord`); `data.split_names(key)` maps a key to its train/validation split. `run_all.py --models v2` trains them; `--models all` / `everything` also fills missing eval splits for existing models by reloading checkpoints (`qlora.load`, `finetune_encoder.load`, verified to reproduce stored scores exactly - scoring runs under explicit bf16 autocast, and QLoRA reload needs `prepare_model_for_kbit_training`).
+- `probe.py` -> `results/style_probe.csv` (style/source separability of each benchmark). `metrics.exclude_trained` removes, per model, the NotInject rows it trained/validated on.
 
 ## Original notebook architecture (ported to the scripts above)
 

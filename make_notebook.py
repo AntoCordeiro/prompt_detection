@@ -176,6 +176,77 @@ HP = hn_paired_table(P).groupby(["family","hard_negatives"])[["n","Precision","R
 display(HP); HP.to_csv(C.RESULTS_DIR / "table_hn_paired.csv")
 """)
 md("""
+# Part 2 - Rigor checks (v2 protocols)
+Added after reviewing the first round: (1) a **level split** of HackAPrompt (test attacks come from levels 2, 5, 8 that never appear in training),
+(2) **out-of-distribution** training (`noHack`: train without HackAPrompt, test on HackAPrompt; `hackOnly`: train on HackAPrompt+Alpaca only, test on Deepset+NotInject),
+(3) a **style / source probe**, and (4) hard negatives restricted by **trigger word** (`hnWord`: trigger words in the held-out NotInject set never occur in training).
+The first-round results (random split) are kept unchanged and shown next to the new ones. Models trained under a protocol carry an `@protocol` suffix.
+Old (random-split) models scored on the level-split benchmark never saw those exact attacks, but did see attacks from the same levels - the gap to the `@lvl` models measures how much the random split flattered them.
+""")
+code("""
+def agg(rows, split, subset=None, cols=("Recall","FPR","F1","AUROC")):
+    \"\"\"rows: list of (label, model key). Mean ± std over seeds of metrics at threshold 0.5 on one split.\"\"\"
+    out = []
+    for label, key in rows:
+        g = P[(P.model == key) & (P.split == split)]
+        if subset is not None: g = g[subset(g)]
+        if g.empty: continue
+        ms = pd.DataFrame([binary_metrics(x.label, x.score) for _, x in g.groupby("seed")])
+        out.append({"model": label, "seeds": len(ms), **{c: fmt(ms, c) for c in cols if ms[c].notna().any()}})
+    return pd.DataFrame(out).set_index("model")
+FAMILIES = {"TF-IDF+LR": "TF-IDF+LR", "DeBERTa-FT": "DeBERTa-FT", "Qwen1.5B-QLoRA": "Qwen1.5B-QLoRA", "Qwen3B-QLoRA": "Qwen3B-QLoRA"}
+ZS = ["ProtectAI","PromptGuard-JB","LlamaGuard-FS","Qwen3B-ZS","Qwen3B-FS"]
+""")
+md("## 12. Style / source probe - how much of each benchmark is solvable by style alone?")
+code("""
+sp_ = pd.read_csv(C.RESULTS_DIR / "style_probe.csv"); display(sp_)
+print("kind=label: 5-fold CV inside the benchmark; kind=source: separating two sources that share the same label (shortcut available if high).")
+""")
+md("## 13. Level split: random-split models vs models trained on other levels")
+code("""
+rows = []
+for f in FAMILIES.values():
+    rows += [(f"{f} (random split)", f), (f"{f} @lvl (unseen levels)", f + "@lvl")]
+rows += [(z + " (zero-shot, no training)", z) for z in ZS]
+print("### Level-split benchmark: unseen-level attacks (339) vs Alpaca benign (339)"); display(agg(rows, "bench_hack_lvl"))
+print("### For reference - original HackAPrompt benchmark (random-split attacks)"); display(agg(rows, "bench_hackaprompt"))
+""")
+md("## 14. Out-of-distribution training")
+code("""
+rows = []
+for f in ["TF-IDF+LR","DeBERTa-FT","Qwen1.5B-QLoRA"]:
+    rows += [(f"{f} (in-distribution: random split)", f), (f"{f} @noHack (trained WITHOUT HackAPrompt)", f + "@noHack")]
+rows += [(z + " (zero-shot)", z) for z in ZS]
+print("### Test on HackAPrompt benchmark (attacks unseen at training for @noHack)"); display(agg(rows, "bench_hackaprompt"))
+rows = []
+for f in ["TF-IDF+LR","DeBERTa-FT","Qwen1.5B-QLoRA"]:
+    rows += [(f"{f} (in-distribution: random split)", f), (f"{f} @hackOnly (trained on HackAPrompt+Alpaca only)", f + "@hackOnly")]
+rows += [(z + " (zero-shot)", z) for z in ZS]
+print("### Test on Deepset+NotInject"); display(agg(rows, "bench_deepset_notinject"))
+print("### Same, Deepset-only subset (source-matched: Deepset attacks vs Deepset benign)")
+display(agg(rows, "bench_deepset_notinject", subset=lambda g: g.source.str.startswith("deepset")))
+""")
+md("## 15. Source-matched check - does performance survive removing the NotInject/Deepset source difference?")
+code("""
+rows = [(m, m) for m in ORDER if m in set(P.model)]
+full = agg(rows, "bench_deepset_notinject", cols=("F1","AUROC")).add_prefix("D+N ")
+dso = agg(rows, "bench_deepset_notinject", subset=lambda g: g.source.str.startswith("deepset"), cols=("F1","AUROC")).add_prefix("Deepset-only ")
+display(full.join(dso, how="left").drop(columns=["D+N seeds"]))
+""")
+md("## 16. Hard negatives chosen by trigger word (`hnWord`) vs random split")
+code("""
+rows = []
+for f in ["TF-IDF+LR","DeBERTa-FT","Qwen1.5B-QLoRA","Qwen3B-QLoRA"]:
+    rows += [(f"{f} (no hard negatives)", f), (f"{f}+HN (random 40% of NotInject)", f + "+HN"), (f"{f}+HN @hnWord (disjoint trigger words)", f + "+HN@hnWord")]
+rows += [(z + " (zero-shot)", z) for z in ["ProtectAI","PromptGuard-JB","LlamaGuard-FS","Qwen3B-ZS"]]
+print("### FPR on NotInject prompts whose trigger words are ALL held out of hnWord training (n=99)"); display(agg(rows, "notinject_heldout_word", cols=("FPR",)))
+print("### FPR on the original random held-out NotInject set"); display(agg(rows, "notinject_heldout", cols=("FPR",)))
+ph = pd.concat([hn_paired_table(P, "bench_deepset_notinject", "hnWord").assign(proto="hnWord"),
+                hn_paired_table(P, "bench_deepset_notinject", "").assign(proto="random")])
+print("### Paired comparison on Deepset+NotInject rows neither model trained on")
+display(ph.groupby(["proto","family","hard_negatives"])[["n","Recall","FPR","F1"]].mean().round(3))
+""")
+md("""
 ## 11. Published reference points (not directly comparable - different data/protocols)
 | Source | Finding |
 |---|---|

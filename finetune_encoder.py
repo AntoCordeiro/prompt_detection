@@ -32,7 +32,7 @@ class FTDetector(Detector):
             idx = order[i:i + bs]
             enc = self.tok([texts[j] for j in idx], return_tensors="pt", padding=True, truncation=True,
                            max_length=self.max_length).to("cuda")
-            with torch.no_grad():
+            with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):  # same precision as training (explicit, reproducible)
                 out[idx] = torch.softmax(self.model(**enc).logits.double(), dim=-1)[:, 1].cpu().numpy()
         self.meta["peak_vram_gb"] = torch.cuda.max_memory_allocated() / 1e9
         return out
@@ -43,9 +43,9 @@ class FTDetector(Detector):
 
 
 def build(key, seed=0, splits=None, **_):
-    hn = key.endswith("+HN")
-    train_df = splits["train_hn" if hn else "train"]
-    val_df = splits["validation_hn" if hn else "validation"]
+    from data import split_names
+    tr_name, va_name = split_names(key)
+    train_df, val_df = splits[tr_name], splits[va_name]
     set_seed(seed)
     torch.cuda.reset_peak_memory_stats()
     tok = AutoTokenizer.from_pretrained(MODEL_ID)
@@ -80,3 +80,14 @@ def build(key, seed=0, splits=None, **_):
     meta = {"n_params": count_params(model), "load_time_s": train_time, "train_time_s": train_time,
             "max_length": max_length, "peak_vram_gb": torch.cuda.max_memory_allocated() / 1e9}
     return FTDetector(key, model, tok, max_length, meta)
+
+
+def load(key, seed=0, **_):
+    """Reload a fine-tuned model from checkpoints/ (used to score new splits without retraining)."""
+    import json
+    p = C.CKPT_DIR / f"{key}_s{seed}" / "final"
+    max_length = json.loads((C.RESULTS_DIR / "latency" / f"{key}__s{seed}.json").read_text())["max_length"]
+    tok = AutoTokenizer.from_pretrained(MODEL_ID)  # same tokenizer object type as in training (a re-saved copy tokenises some rows differently)
+    model = AutoModelForSequenceClassification.from_pretrained(p, dtype=torch.float32).cuda()
+    torch.cuda.reset_peak_memory_stats()
+    return FTDetector(key, model, tok, max_length, {"n_params": count_params(model)})

@@ -1,0 +1,1 @@
+{"model": "DeBERTa-FT+HN@hnWord", "seed": 1, "n_params": 184423682, "load_time_s": 78.72181989997625, "train_time_s": 78.72181989997625, "max_length": 128, "peak_vram_gb": 4.619814912, "latency_ms_bs1": 17.63897031196393, "latency_ms_bs32": 1.2866398437836324}
