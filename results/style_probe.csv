@@ -1,0 +1,9 @@
+kind,probe,n_neg,n_pos,AUROC style features,AUROC char-ngram LR
+label,HackAPrompt benchmark: attacks vs Alpaca benign,339,339,0.978,1.0
+label,Level-split benchmark: unseen-level attacks vs Alpaca benign,339,339,0.967,1.0
+label,Deepset+NotInject benchmark: attacks vs benign (all),395,60,0.937,0.973
+label,Deepset only (source-matched): attacks vs benign,56,60,0.922,0.939
+source|benign,NotInject vs Deepset benign,56,339,0.971,0.999
+source|benign,Alpaca vs Deepset benign,56,339,0.966,0.993
+source|benign,Alpaca vs NotInject,339,339,0.984,0.982
+source|attack,HackAPrompt vs Deepset attacks,60,339,0.938,0.994

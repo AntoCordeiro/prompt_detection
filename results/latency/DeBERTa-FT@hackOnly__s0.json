@@ -1,0 +1,1 @@
+{"model": "DeBERTa-FT@hackOnly", "seed": 0, "n_params": 184423682, "load_time_s": 67.28904109995347, "train_time_s": 67.28904109995347, "max_length": 128, "peak_vram_gb": 4.61926912, "latency_ms_bs1": 18.526275781368895, "latency_ms_bs32": 1.4665320313724806}

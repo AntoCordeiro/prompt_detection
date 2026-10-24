@@ -1,0 +1,1 @@
+{"model": "TF-IDF+LR+HN@hnWord", "seed": 0, "n_params": 10000, "load_time_s": 0.059540800051763654, "peak_vram_gb": 0.0, "latency_ms_bs1": 0.3703335942191188, "latency_ms_bs32": 0.027382031476008706}

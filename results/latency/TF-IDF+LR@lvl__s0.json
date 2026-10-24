@@ -1,0 +1,1 @@
+{"model": "TF-IDF+LR@lvl", "seed": 0, "n_params": 10000, "load_time_s": 0.2927186000160873, "peak_vram_gb": 0.0, "latency_ms_bs1": 0.441421093455574, "latency_ms_bs32": 0.026346093363827094}

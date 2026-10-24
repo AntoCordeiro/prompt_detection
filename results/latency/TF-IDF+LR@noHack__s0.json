@@ -1,0 +1,1 @@
+{"model": "TF-IDF+LR@noHack", "seed": 0, "n_params": 8272, "load_time_s": 0.027050499920733273, "peak_vram_gb": 0.0, "latency_ms_bs1": 0.36912812447553733, "latency_ms_bs32": 0.026162500034843106}

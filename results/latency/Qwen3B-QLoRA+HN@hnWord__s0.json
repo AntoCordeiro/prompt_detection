@@ -1,0 +1,1 @@
+{"model": "Qwen3B-QLoRA+HN@hnWord", "seed": 0, "n_params": 1728614400, "load_time_s": 420.31457689998206, "train_time_s": 420.31457689998206, "max_length": 128, "peak_vram_gb": 3.531613696, "latency_ms_bs1": 108.11219140578032, "latency_ms_bs32": 13.033938281296287}
