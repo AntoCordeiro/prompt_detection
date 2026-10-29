@@ -34,8 +34,8 @@ ALL_MODELS = [
 BENCH_SPLITS = ["bench_hackaprompt", "bench_deepset_notinject", "notinject_heldout", "bench_hack_lvl", "notinject_heldout_word"]
 V2_MODELS = [  # trained under the v2 protocols (see config.PROTOCOLS)
     "TF-IDF+LR@lvl", "DeBERTa-FT@lvl", "Qwen1.5B-QLoRA@lvl", "Qwen3B-QLoRA@lvl",
-    "TF-IDF+LR@noHack", "DeBERTa-FT@noHack", "Qwen1.5B-QLoRA@noHack",
-    "TF-IDF+LR@hackOnly", "DeBERTa-FT@hackOnly", "Qwen1.5B-QLoRA@hackOnly",
+    "TF-IDF+LR@noHack", "DeBERTa-FT@noHack", "Qwen1.5B-QLoRA@noHack", "Qwen3B-QLoRA@noHack",
+    "TF-IDF+LR@hackOnly", "DeBERTa-FT@hackOnly", "Qwen1.5B-QLoRA@hackOnly", "Qwen3B-QLoRA@hackOnly",
     "TF-IDF+LR+HN@hnWord", "DeBERTa-FT+HN@hnWord", "Qwen1.5B-QLoRA+HN@hnWord", "Qwen3B-QLoRA+HN@hnWord",
 ]
 
